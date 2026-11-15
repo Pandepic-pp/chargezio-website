@@ -5,10 +5,27 @@ import { clamp, smooth, story } from './story'
 
 gsap.registerPlugin(ScrollTrigger)
 
+let lenisRef: Lenis | null = null
+
+// Scroll to an element by id. Uses Lenis when it is running so the motion matches the rest of the site.
+export function scrollToId(id: string, offset = 0, immediate = false) {
+  const el = document.getElementById(id)
+  if (!el) return
+  const y = el.getBoundingClientRect().top + window.scrollY - offset
+  if (lenisRef) {
+    // New content may have just changed the page height; re-measure so the target is not clamped.
+    lenisRef.resize()
+    lenisRef.scrollTo(y, { immediate })
+  }
+  else window.scrollTo({ top: y, behavior: immediate || story.reduced ? 'auto' : 'smooth' })
+}
+
 // One ticker drives everything: Lenis smooth scroll, story progress, DOM captions,
 // the charging HUD and the 3D render. Nothing here goes through React state.
 export function initScroll(el: HTMLElement) {
   story.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+  story.progress = 0
+  story.smooth = 0
 
   let top = 0
   let total = 1
@@ -48,6 +65,7 @@ export function initScroll(el: HTMLElement) {
     lenis = new Lenis({ lerp: 0.1, smoothWheel: true, anchors: true })
     lenis.on('scroll', ScrollTrigger.update)
   }
+  lenisRef = lenis
   gsap.ticker.lagSmoothing(0)
 
   let lastSmooth = -1
@@ -138,6 +156,7 @@ export function initScroll(el: HTMLElement) {
     gsap.ticker.remove(tick)
     ctx.revert()
     lenis?.destroy()
+    lenisRef = null
     ro.disconnect()
     window.removeEventListener('resize', measure)
   }
