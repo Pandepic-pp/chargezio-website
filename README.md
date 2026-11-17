@@ -17,7 +17,8 @@ shared positions are in src/layout.ts.
 
 ## Car model
 The car is the Mahindra BE 6 style EV built in Blender: `public/models/be6.glb` (about 145K triangles, 0.64 MB,
-Draco compressed; the decoder is served from `public/draco/`). It is loaded in `src/scene/Car.tsx`.
+Draco compressed; the decoder is served from `public/draco/`, WebAssembly only). It is loaded in `src/scene/Car.tsx` with the small
+loader in `src/scene/gltf.ts` (the site does not use `@react-three/drei`).
 Node names the code relies on: `Wheel_{FL,FR,RL,RR}_Steer` (pivot, front pair steers), `Wheel_xx_Spin` (spins about the
 axle), `Caliper_xx`, `Charge_Flap` (origin on its front hinge edge, opens about Y) and `BE6_Body` (everything else, one
 primitive per material). Lamps are driven by material name (`BE6_DRL_LED`, `BE6R_Tail_LED` ...) in `Car.tsx`.
@@ -26,6 +27,9 @@ the back; it is fixed to the car, not the world (`uBlue` / `uGreen` in `Car.tsx`
 The charge port position and normal are the `PORT` constants in `src/layout.ts`; camera keys near the port are in `src/camera.ts`.
 
 ## Opening shot
+The shot is dreamy on purpose: it opens in a soft lilac haze and soft focus with a few slow bokeh lights, the camera drifts, rocks
+and breathes a little, and all of it clears as the camera settles (`--dream` is written from `World.tsx`, the veil is `.dream` in
+`styles.css`, the float is in `applyIntro`).
 After the loading screen the camera starts as a bird's-eye view of the city, drops quickly onto the hero car and starts a full
 360 degree orbit around it, while the car drives in (12 s in all, `INTRO_SECONDS` in `src/story.ts`): down cross road A, round
 roundabout R1, a right turn onto the main road, along the lane and into the station bay (`src/scene/route.ts`). The camera keeps
@@ -41,7 +45,7 @@ the shot at 62% and `window.__story.introT = 9.6` (seconds) scrubs it live (`win
 `src/scene/cityLayout.ts` describes the map: the main road, cross roads A (x = -48) and B (x = 70), the avenue (z = 90) and
 roundabouts R1 and R2. `City.tsx` builds the roads, pavements, junction ramps and roundabouts, `Road.tsx` the main road and the
 towers, `Traffic.tsx` the background cars (they follow the lane routes in `cityLayout.ts` and slow down for the hero car) and
-`People.tsx` the pedestrians. The cars and the pedestrians are web-ready models in `public/models/city/` (about 3 MB in total, Draco compressed, made in Blender from
+`People.tsx` the pedestrians. The cars and the pedestrians are web-ready models in `public/models/city/` (about 2.6 MB in total, Draco compressed, textures in WebP, made in Blender from
 low-poly source models that are not part of this project) and instanced in `fleet.ts`. Street, cars, people and the charger share ink outlines (`src/scene/ink.ts`).
 
 ## Pages and flow

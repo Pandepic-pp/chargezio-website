@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
+import { useGLTF } from './gltf'
 import * as THREE from 'three'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { INTRO_SECONDS, clamp, smooth, story } from '../story'
@@ -8,7 +8,8 @@ import { carPose, phases, PORT } from '../layout'
 import { hero } from './cityLayout'
 import { INTRO_DRIVE_END, routePose } from './route'
 import { makeHalo } from './ink'
-import { makeBeam, makeCarShadow, makeRadial } from './textures'
+import { makeCarShadow, makeRadial } from './textures'
+import { beamGeometry, beamMaterial, beamTexture } from './beams'
 
 // The car is the Mahindra BE 6 style EV built in Blender (public/models/be6.glb, Draco compressed).
 // Node names in the file:
@@ -21,7 +22,6 @@ import { makeBeam, makeCarShadow, makeRadial } from './textures'
 const GREEN = '#05C158'
 const BASE = import.meta.env.BASE_URL
 const URL = BASE + 'models/be6.glb'
-useGLTF.setDecoderPath(BASE + 'draco/')
 useGLTF.preload(URL)
 
 // Lamp materials (by name in the GLB). Their emission is driven by the story.
@@ -51,11 +51,12 @@ export function Car({ high }: { high: boolean }) {
   const tgL = useRef<THREE.Object3D>(null)
   const tgR = useRef<THREE.Object3D>(null)
   const tailLight = useRef<THREE.PointLight>(null)
-  const beamTex = useMemo(makeBeam, [])
-  const beamMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
-    [beamTex],
-  )
+  // the light on the road: two soft pools ahead (one per headlamp) and two short red ones behind (tail lamps), the same as the traffic
+  const beamTex = useMemo(beamTexture, [])
+  const beamMat = useMemo(() => beamMaterial(beamTex, '#fff1d6', 0), [beamTex])
+  const tailBeamMat = useMemo(() => beamMaterial(beamTex, '#ff3a22', 0), [beamTex])
+  const beamFGeo = useMemo(() => beamGeometry(1), [])
+  const beamRGeo = useMemo(() => beamGeometry(-1), [])
   const ringMat = useRef<THREE.MeshStandardMaterial>(null)
   const glowMat = useRef<THREE.MeshBasicMaterial>(null)
   const portLight = useRef<THREE.PointLight>(null)
@@ -273,7 +274,8 @@ export function Car({ high }: { high: boolean }) {
     const beam = n * drive
     if (spL.current) spL.current.intensity = 160 * beam
     if (spR.current) spR.current.intensity = 160 * beam
-    beamMat.opacity = 0.5 * beam
+    beamMat.opacity = 0.55 * beam
+    tailBeamMat.opacity = (0.3 * tailLvl + 0.7 * brake) * (0.15 + 0.85 * n)
     if (tailLight.current) tailLight.current.intensity = (0.5 * tailLvl + 2.2 * brake) * (0.3 + 0.7 * n) * 1.4
 
     // the car's own reflection map is a bright studio: dim it at night so the paint reads dark
@@ -300,9 +302,10 @@ export function Car({ high }: { high: boolean }) {
         <object3D ref={tgR} position={[15, -0.1, -1.1]} />
         <pointLight ref={tailLight} position={[-3.1, 0.45, 0]} color="#ff2b1c" intensity={0} distance={5} decay={2} />
         {[0.62, -0.62].map((z) => (
-          <mesh key={z} rotation-x={-Math.PI / 2} position={[7.3, 0.03, z * 1.2]} renderOrder={4} material={beamMat}>
-            <planeGeometry args={[10, 3.6]} />
-          </mesh>
+          <group key={z}>
+            <mesh geometry={beamFGeo} material={beamMat} position={[2.0, 0.03, z]} scale={[9, 1, 2.2]} renderOrder={4} />
+            <mesh geometry={beamRGeo} material={tailBeamMat} position={[-2.1, 0.03, z]} scale={[3.2, 1, 1.5]} renderOrder={4} />
+          </group>
         ))}
 
         {/* charge port: status ring and light */}

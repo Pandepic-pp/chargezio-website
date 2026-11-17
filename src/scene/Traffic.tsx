@@ -1,12 +1,13 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { useGLTF } from '@react-three/drei'
+import { useGLTF } from './gltf'
 import { story } from '../story'
 import { merge } from './math'
 import { buildFleet, modelUrl } from './fleet'
 import { LANE1, ROUTES, hero, roadY } from './cityLayout'
 import { seeded } from './props'
+import { beamGeometry, beamMaterial, beamTexture } from './beams'
 
 // Background traffic: simple stylised cars (so they match the outlined look of the street) driving the lanes of the
 // city, round the roundabouts and through the junctions. Plus a few parked cars along the kerb.
@@ -27,35 +28,37 @@ URLS.forEach((u) => useGLTF.preload(u))
 
 type Car = { route: number; s: number; v: number; vNow: number; waitsForHero: boolean; model: number; slot: number; prio: number; stuck: number; dist: number }
 
-function useLampGeometry() {
-  return useMemo(() => {
-    const lampGeos: THREE.BufferGeometry[] = []
-    const paint = (g: THREE.BufferGeometry, hex: string) => {
-      const c = new THREE.Color(hex)
-      const a = new Float32Array(g.attributes.position.count * 3)
-      for (let i = 0; i < a.length; i += 3) {
-        a[i] = c.r
-        a[i + 1] = c.g
-        a[i + 2] = c.b
-      }
-      g.setAttribute('color', new THREE.BufferAttribute(a, 3))
-      return g
-    }
-    for (const z of [-0.62, 0.62]) {
-      const f = new THREE.BoxGeometry(0.1, 0.12, 0.34)
-      f.translate(2.06, 0.74, z)
-      lampGeos.push(paint(f.toNonIndexed(), '#fff6dc'))
-      const r = new THREE.BoxGeometry(0.1, 0.12, 0.38)
-      r.translate(-2.06, 0.76, z)
-      lampGeos.push(paint(r.toNonIndexed(), '#ff2a1c'))
-    }
-    return merge(lampGeos)
-  }, [])
+// Head and tail lamps: the models already have their own lamp shapes, so at night each lamp only gets a soft round glow
+// (a camera-facing point sprite with a radial fade) placed from the model's bounds: nose and tail, at headlight height.
+type Lamp = { p: THREE.Vector3; color: THREE.Color }
+function lampAnchors(box: THREE.Box3): Lamp[] {
+  const w = box.max.z - box.min.z
+  const y = box.min.y + (box.max.y - box.min.y) * 0.4
+  const z = w * 0.28
+  const out: Lamp[] = []
+  for (const side of [-1, 1]) {
+    out.push({ p: new THREE.Vector3(box.max.x - 0.22, y, side * z), color: new THREE.Color('#ffefc8') })
+    out.push({ p: new THREE.Vector3(box.min.x + 0.2, y + 0.04, side * z), color: new THREE.Color('#ff2a1c') })
+  }
+  return out
+}
+function glowTexture() {
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const g = c.getContext('2d')!
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+  r.addColorStop(0, 'rgba(255,255,255,1)')
+  r.addColorStop(0.25, 'rgba(255,255,255,0.55)')
+  r.addColorStop(1, 'rgba(255,255,255,0)')
+  g.fillStyle = r
+  g.fillRect(0, 0, 64, 64)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
 }
 
 export function Traffic({ high }: { high: boolean }) {
   const gltfs = useGLTF(URLS)
-  const lampGeo = useLampGeometry()
   const rand = useMemo(() => seeded(77), [])
 
   // moving cars
@@ -120,7 +123,17 @@ export function Traffic({ high }: { high: boolean }) {
           const size = box.getSize(new THREE.Vector3())
           return { fleet: buildFleet(node, n), center: node.position.clone(), radius: Math.max(size.x, size.y) / 2, front: k[0] === 'F' }
         })
-        return { body, wheels }
+        const bounds = new THREE.Box3().setFromObject(g.scene.getObjectByName(MODELS[i].name)!)
+        const wid = bounds.max.z - bounds.min.z
+        const S = (l: number, w: number) => new THREE.Matrix4().makeScale(l, 1, w)
+        return {
+          body,
+          wheels,
+          lamps: lampAnchors(bounds),
+          // two soft pools at the front (one per headlamp) and two short ones behind (taillamps)
+          beamF: [-1, 1].map((side) => new THREE.Matrix4().makeTranslation(bounds.max.x - 0.15, 0.03, side * wid * 0.28).multiply(S(8, wid * 0.9))),
+          beamR: [-1, 1].map((side) => new THREE.Matrix4().makeTranslation(bounds.min.x + 0.15, 0.03, side * wid * 0.28).multiply(S(2.6, wid * 0.7))),
+        }
       }),
     [gltfs, counts],
   )
@@ -128,25 +141,37 @@ export function Traffic({ high }: { high: boolean }) {
   const fleets = useMemo(() => models.flatMap((m) => [m.body, ...m.wheels.map((w) => w.fleet)]), [models])
   useLayoutEffect(() => () => fleets.forEach((f) => f.dispose()), [fleets])
 
+  // one glow point per lamp of every car (four each), moved with the cars every frame
   const total = cars.length + parked.length
-  const lampRef = useRef<THREE.InstancedMesh>(null)
-  const lampMat = useRef<THREE.MeshBasicMaterial>(null)
+  const glowTex = useMemo(() => glowTexture(), [])
+  const glowGeo = useMemo(() => {
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(total * 4 * 3), 3))
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(total * 4 * 3), 3))
+    return g
+  }, [total])
+  const glowMat = useRef<THREE.PointsMaterial>(null)
+  const beamTex = useMemo(beamTexture, [])
+  const beamFGeo = useMemo(() => beamGeometry(1), [])
+  const beamRGeo = useMemo(() => beamGeometry(-1), [])
+  const beamFRef = useRef<THREE.InstancedMesh>(null)
+  const beamRRef = useRef<THREE.InstancedMesh>(null)
+  const beamFMat = useMemo(() => beamMaterial(beamTex, '#ffeccb', 0.05), [beamTex])
+  const beamRMat = useMemo(() => beamMaterial(beamTex, '#ff3a22', 0.03), [beamTex])
+  const bm = useMemo(() => new THREE.Matrix4(), [])
+  const lp = useMemo(() => new THREE.Vector3(), [])
 
   const obj = useMemo(() => new THREE.Object3D(), [])
   const tan = useMemo(() => new THREE.Vector3(), [])
   const pos = useMemo(() => new THREE.Vector3(), [])
   const tan2 = useMemo(() => new THREE.Vector3(), [])
   const hide = useMemo(() => new THREE.Matrix4().makeScale(0, 0, 0), [])
-  const dimLamp = useMemo(() => new THREE.Color('#9a9a9a'), [])
-  const brightLamp = useMemo(() => new THREE.Color('#ffffff'), [])
-  const lampScale = useMemo(() => new THREE.Matrix4(), [])
-  const lampMatrix = useMemo(() => new THREE.Matrix4(), [])
   const last = useRef(performance.now())
 
   const wm = useMemo(() => new THREE.Matrix4(), [])
   const wt = useMemo(() => new THREE.Matrix4(), [])
   const wr = useMemo(() => new THREE.Matrix4(), [])
-  const place = (car: { model: number; slot: number; dist?: number }, idx: number, m: THREE.Matrix4, scaleX: number, steer = 0, hidden = false) => {
+  const place = (car: { model: number; slot: number; dist?: number }, idx: number, m: THREE.Matrix4, steer = 0, hidden = false) => {
     const mod = models[car.model]
     mod.body.set(car.slot, m)
     for (const w of mod.wheels) {
@@ -160,10 +185,20 @@ export function Traffic({ high }: { high: boolean }) {
       wm.multiply(wr.makeRotationZ(-(car.dist ?? 0) / w.radius))
       w.fleet.set(car.slot, wm)
     }
-    // lamps: same pose, stretched to the model's length
-    lampScale.makeScale(scaleX, 1, 1)
-    lampMatrix.multiplyMatrices(m, lampScale)
-    lampRef.current!.setMatrixAt(idx, lampMatrix)
+    // light on the road: same pose (a hidden car's matrix is all zeros, so its beams vanish too)
+    for (let k = 0; k < 2; k++) {
+      beamFRef.current?.setMatrixAt(idx * 2 + k, bm.multiplyMatrices(m, mod.beamF[k]))
+      beamRRef.current?.setMatrixAt(idx * 2 + k, bm.multiplyMatrices(m, mod.beamR[k]))
+    }
+    // lamp glows: same pose (a hidden car parks its glows far below the street)
+    const pos = glowGeo.attributes.position as THREE.BufferAttribute
+    const col = glowGeo.attributes.color as THREE.BufferAttribute
+    mod.lamps.forEach((l, k) => {
+      if (hidden) lp.set(0, -500, 0)
+      else lp.copy(l.p).applyMatrix4(m)
+      pos.setXYZ(idx * 4 + k, lp.x, lp.y, lp.z)
+      col.setXYZ(idx * 4 + k, l.color.r, l.color.g, l.color.b)
+    })
   }
 
   useLayoutEffect(() => {
@@ -172,10 +207,12 @@ export function Traffic({ high }: { high: boolean }) {
       obj.rotation.set(0, 0, 0)
       obj.scale.set(1, 1, 1)
       obj.updateMatrix()
-      place(c, cars.length + j, obj.matrix, MODELS[c.model].length / 4.1)
+      place(c, cars.length + j, obj.matrix)
     })
     fleets.forEach((f) => f.commit())
-    lampRef.current!.instanceMatrix.needsUpdate = true
+    glowGeo.attributes.position.needsUpdate = glowGeo.attributes.color.needsUpdate = true
+    if (beamFRef.current) beamFRef.current.instanceMatrix.needsUpdate = true
+    if (beamRRef.current) beamRRef.current.instanceMatrix.needsUpdate = true
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [models])
 
@@ -266,9 +303,8 @@ export function Traffic({ high }: { high: boolean }) {
     // 3. place the cars
     cars.forEach((c, i) => {
       const r = ROUTES[c.route]
-      const sx = MODELS[c.model].length / 4.1
       if (isWaiting(c, running) || c.s < 0) {
-        place(c, i, hide, sx, 0, true)
+        place(c, i, hide, 0, true)
         return
       }
       const u = Math.max(0, Math.min(1, c.s / r.length))
@@ -285,12 +321,17 @@ export function Traffic({ high }: { high: boolean }) {
       obj.rotation.set(0, yaw, 0)
       obj.scale.set(1, 1, 1)
       obj.updateMatrix()
-      place(c, i, obj.matrix, sx, steer)
+      place(c, i, obj.matrix, steer)
     })
     fleets.forEach((f) => f.commit())
-    lampRef.current!.instanceMatrix.needsUpdate = true
-    // lamps are brighter at night
-    if (lampMat.current) lampMat.current.color.lerpColors(dimLamp, brightLamp, story.night)
+    glowGeo.attributes.position.needsUpdate = glowGeo.attributes.color.needsUpdate = true
+    // the glows are barely there by day and bloom at night
+    if (glowMat.current) glowMat.current.opacity = 0.12 + 0.88 * story.night
+    if (beamFRef.current) beamFRef.current.instanceMatrix.needsUpdate = true
+    if (beamRRef.current) beamRRef.current.instanceMatrix.needsUpdate = true
+    // headlight pools are only a hint by day and strong at night
+    beamFMat.opacity = 0.05 + 0.5 * story.night
+    beamRMat.opacity = 0.03 + 0.4 * story.night
   })
 
   return (
@@ -298,9 +339,22 @@ export function Traffic({ high }: { high: boolean }) {
       {fleets.map((f, i) => (
         <primitive key={i} object={f.group} />
       ))}
-      <instancedMesh ref={lampRef} args={[lampGeo, undefined, total]} frustumCulled={false}>
-        <meshBasicMaterial ref={lampMat} vertexColors color="#9a9a9a" toneMapped={false} />
-      </instancedMesh>
+      <instancedMesh ref={beamFRef} args={[beamFGeo, beamFMat, total * 2]} frustumCulled={false} renderOrder={1} />
+      <instancedMesh ref={beamRRef} args={[beamRGeo, beamRMat, total * 2]} frustumCulled={false} renderOrder={1} />
+      <points geometry={glowGeo} frustumCulled={false} renderOrder={2}>
+        <pointsMaterial
+          ref={glowMat}
+          map={glowTex}
+          vertexColors
+          size={0.7}
+          sizeAttenuation
+          transparent
+          opacity={0.12}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+          toneMapped={false}
+        />
+      </points>
     </group>
   )
 }

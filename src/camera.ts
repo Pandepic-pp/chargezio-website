@@ -150,6 +150,9 @@ const KEYS3: [number, number, number][] = [
   [ORBIT_END, Math.log(12.2), rad2(21)],
 ]
 
+const _fwd = new THREE.Vector3()
+const _rollQ = new THREE.Quaternion()
+
 export function applyIntro(cam: THREE.PerspectiveCamera, t: number, heroFov: number) {
   _heroP.copy(cam.position)
   _heroQ.copy(cam.quaternion)
@@ -200,7 +203,13 @@ export function applyIntro(cam: THREE.PerspectiveCamera, t: number, heroFov: num
   // keep the car in the middle of the picture through the whole orbit, and only turn to the hero view as the camera settles
   cam.quaternion.copy(_q0).slerp(_heroQ, smooth(ORBIT_END - 0.5, DESIGN, ts))
 
-  const fov = heroFov + 8 * (1 - smooth(0, 12, ts))
+  // dreamy float: the camera drifts, rocks and breathes a little, then everything settles as it comes to rest
+  const calm = 1 - smooth(5.5, DESIGN, ts)
+  cam.position.y += 0.012 * r * Math.sin(ts * 0.62 + 1.1) * calm
+  _fwd.set(0, 0, -1).applyQuaternion(cam.quaternion)
+  cam.quaternion.premultiply(_rollQ.setFromAxisAngle(_fwd, 0.05 * Math.sin(ts * 0.55) * calm))
+
+  const fov = heroFov + 8 * (1 - smooth(0, 12, ts)) + 0.9 * Math.sin(ts * 0.7) * calm
   if (Math.abs(cam.fov - fov) > 0.01) {
     cam.fov = fov
     cam.updateProjectionMatrix()

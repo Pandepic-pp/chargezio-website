@@ -1485,3 +1485,58 @@ html[data-theme='dark'] .header {
     transition: none;
   }
 }
+
+
+/* The dreamy veil of the opening shot. --dream (1 to 0) is written by the 3D scene: a soft focus, a pastel glow around the edges
+   and a few slow bokeh lights drifting up. It fades with the haze and is removed once the intro class is gone. */
+.dream {
+  --dream-edge: 196, 184, 255;
+  --dream-glow: 120, 232, 190;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: var(--dream, 0);
+  backdrop-filter: blur(calc(var(--dream, 0) * 3.5px)) saturate(1.12);
+  background:
+    radial-gradient(115% 85% at 50% 48%, rgba(var(--dream-edge), 0) 42%, rgba(var(--dream-edge), 0.5) 100%),
+    radial-gradient(55% 45% at 50% 58%, rgba(var(--dream-glow), 0.22), transparent 72%);
+}
+html[data-theme='dark'] .dream {
+  --dream-edge: 74, 62, 190;
+  --dream-glow: 60, 200, 170;
+}
+html:not(.intro) .dream {
+  display: none;
+}
+.dream i {
+  position: absolute;
+  left: calc(8% + var(--i) * 10.5%);
+  bottom: -12%;
+  width: calc(60px + var(--i) * 9px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.55), rgba(var(--dream-glow), 0.18) 55%, transparent 70%);
+  filter: blur(6px);
+  opacity: 0;
+  animation: dream-rise calc(9s + var(--i) * 1.3s) ease-in-out calc(var(--i) * -2.1s) infinite;
+}
+@keyframes dream-rise {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.7);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate3d(calc((var(--i) - 4) * 9px), -125vh, 0) scale(1.25);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dream i {
+    animation: none;
+  }
+}
