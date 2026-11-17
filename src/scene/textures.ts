@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { drawLogo, drawMark } from './logo'
 
 // All textures are drawn on canvases at start-up, so the site ships with no image files.
 
@@ -27,31 +28,9 @@ function rng(seed: number) {
   }
 }
 
-export function pinPath(g: CanvasRenderingContext2D, cx: number, cy: number, s: number) {
-  // The Chargezio pin, drawn from the same path as the logo.
-  g.save()
-  g.translate(cx - 12 * s, cy - 12 * s)
-  g.scale(s, s)
-  g.beginPath()
-  g.moveTo(12, 2)
-  g.bezierCurveTo(8.1, 2, 5, 5.1, 5, 9)
-  g.bezierCurveTo(5, 14.2, 12, 22, 12, 22)
-  g.bezierCurveTo(12, 22, 19, 14.2, 19, 9)
-  g.bezierCurveTo(19, 5.1, 15.9, 2, 12, 2)
-  g.closePath()
-  g.fillStyle = '#05C158'
-  g.fill()
-  g.beginPath()
-  g.moveTo(12.8, 5.5)
-  g.lineTo(8.8, 10.7)
-  g.lineTo(11.5, 10.7)
-  g.lineTo(10.9, 15)
-  g.lineTo(14.9, 9.7)
-  g.lineTo(12.2, 9.7)
-  g.closePath()
-  g.fillStyle = '#fff'
-  g.fill()
-  g.restore()
+// The Chargezio mark (the real logo: gradient ring with a plug around a location pin), `s` times 24 px across.
+export function pinPath(g: CanvasRenderingContext2D, cx: number, cy: number, s: number, ink = '#000') {
+  drawMark(g, cx, cy, 24 * s, ink)
 }
 
 // Number plates (Indian EV plates are green), the rear wordmark and the front badge.
@@ -91,7 +70,7 @@ export function makeAtlas() {
   // badge
   g.fillStyle = '#16181c'
   g.fillRect(512, 130, 205, 120)
-  pinPath(g, 614, 190, 3.6)
+  pinPath(g, 614, 190, 3.6, '#fff')
   return tex(c, { aniso: 4 })
 }
 
@@ -145,7 +124,7 @@ function wrapDraw(size: number, draw: (ox: number, oy: number) => void) {
 export function makeAsphalt(size: number) {
   const { c, g } = canvas(size, size)
   const r = rng(11)
-  g.fillStyle = '#888e97'
+  g.fillStyle = '#4a4e55'
   g.fillRect(0, 0, size, size)
   // broad tonal patches
   g.filter = `blur(${size / 18}px)`
@@ -377,8 +356,9 @@ export function makeDrain() {
 
 // EV bay: green floor, white outline and the plug symbol.
 export function makeEvBay() {
+  // a marked parking bay: white outline with a light green tint inside (not a solid green strip)
   const { c, g } = canvas(1024, 512)
-  g.fillStyle = '#35b278'
+  g.fillStyle = 'rgba(53,178,120,0.20)'
   g.fillRect(0, 0, 1024, 512)
   const r = rng(3)
   g.globalCompositeOperation = 'destination-out'
@@ -388,8 +368,48 @@ export function makeEvBay() {
   }
   g.globalCompositeOperation = 'source-over'
   g.strokeStyle = 'rgba(255,255,255,0.92)'
-  g.lineWidth = 14
-  g.strokeRect(12, 12, 1000, 488)
+  g.lineWidth = 12
+  g.strokeRect(10, 10, 1004, 492)
+  // chevrons in the middle of the bay so it reads as "park here"
+  g.strokeStyle = 'rgba(255,255,255,0.45)'
+  g.lineWidth = 10
+  for (const x of [330, 430, 530, 630]) {
+    g.beginPath()
+    g.moveTo(x, 190)
+    g.lineTo(x + 60, 256)
+    g.lineTo(x, 322)
+    g.stroke()
+  }
+  return tex(c, { aniso: 8 })
+}
+
+// Station branding: the Chargezio logo on a dark panel (canopy fascia and totem). White lettering, brand-green "zio".
+// `planeAspect` is the width / height of the surface the texture is put on: when it differs from the canvas's, the drawing is
+// pre-squeezed so the logo is not stretched.
+export function makeStationSign(w: number, h: number, withTag = true, planeAspect = w / h) {
+  const { c, g } = canvas(w, h)
+  g.fillStyle = '#1d2228'
+  g.fillRect(0, 0, w, h)
+  g.fillStyle = '#05C158'
+  g.fillRect(0, h - h * 0.07, w, h * 0.07)
+  // the logo is about 3.4 times wider than tall: fit it to the panel, centred (a little high when there is a tag line)
+  const sx = w / h / planeAspect
+  const lh = Math.min(h * (withTag ? 0.56 : 0.3), (w * 0.8) / (1050 / 306) / sx)
+  const lw = lh * (1050 / 306)
+  const ly = withTag ? h * 0.12 : h * 0.46 - lh / 2
+  g.save()
+  g.translate(w / 2, 0)
+  g.scale(sx, 1)
+  g.translate(-w / 2, 0)
+  drawLogo(g, (w - lw) / 2, ly, lh, '#ffffff')
+  if (withTag) {
+    g.fillStyle = 'rgba(255,255,255,0.7)'
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.font = `600 ${Math.round(h * 0.12)}px Inter, Arial, sans-serif`
+    g.fillText('EV CHARGING  ·  24/7', w * 0.5, h * 0.8)
+  }
+  g.restore()
   return tex(c, { aniso: 8 })
 }
 
@@ -457,7 +477,7 @@ export function makeArrow() {
 export function makeFacade(seed: number) {
   const { c, g } = canvas(256, 512)
   const r = rng(seed)
-  g.fillStyle = '#ffffff'
+  g.fillStyle = '#e9ebee'
   g.fillRect(0, 0, 256, 512)
   const cols = 8
   const rows = 16
@@ -466,7 +486,7 @@ export function makeFacade(seed: number) {
   for (let i = 0; i < cols; i++) {
     for (let j = 0; j < rows; j++) {
       const lit = r() < 0.06
-      g.fillStyle = lit ? '#fff6d6' : r() < 0.5 ? '#cfdbe9' : '#c2d1e2'
+      g.fillStyle = lit ? '#f6e7b8' : r() < 0.5 ? '#9fb0c2' : '#8fa1b5'
       g.fillRect(i * cw + 6, j * rh + 7, cw - 12, rh - 12)
       g.fillStyle = 'rgba(255,255,255,0.5)'
       g.fillRect(i * cw + 6, j * rh + 7, cw - 12, 3)
@@ -475,6 +495,57 @@ export function makeFacade(seed: number) {
   g.fillStyle = 'rgba(0,0,0,0.035)'
   for (let j = 0; j < rows; j += 4) g.fillRect(0, j * rh, 256, 3)
   return tex(c, { repeat: true, aniso: 4 })
+}
+
+// Lit windows for the night: warm squares on black, laid out on the same grid as makeFacade. Used as an emissive map.
+export function makeFacadeGlow(seed: number) {
+  const { c, g } = canvas(256, 512)
+  const r = rng(seed * 7 + 1)
+  g.fillStyle = '#000'
+  g.fillRect(0, 0, 256, 512)
+  const cols = 8
+  const rows = 16
+  const cw = 256 / cols
+  const rh = 512 / rows
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      const v = r()
+      if (v > 0.3) continue
+      g.fillStyle = v < 0.1 ? '#ffe9b0' : v < 0.26 ? '#ffd58a' : '#9fc4ff'
+      g.fillRect(i * cw + 6, j * rh + 7, cw - 12, rh - 12)
+    }
+  }
+  return tex(c, { repeat: true, aniso: 4 })
+}
+
+// Headlight beam on the ground: a wedge, bright at the lamp and fading to nothing. Drawn along +u, centred on v.
+export function makeBeam() {
+  const { c, g } = canvas(512, 256)
+  g.clearRect(0, 0, 512, 256)
+  const gr = g.createLinearGradient(0, 0, 512, 0)
+  gr.addColorStop(0, 'rgba(255,244,214,0.95)')
+  gr.addColorStop(0.35, 'rgba(255,240,200,0.42)')
+  gr.addColorStop(1, 'rgba(255,240,200,0)')
+  g.fillStyle = gr
+  g.beginPath()
+  g.moveTo(0, 118)
+  g.lineTo(512, 10)
+  g.lineTo(512, 246)
+  g.lineTo(0, 138)
+  g.closePath()
+  g.filter = 'blur(10px)'
+  g.fill()
+  // soften the sides with a vertical falloff
+  g.filter = 'none'
+  g.globalCompositeOperation = 'destination-in'
+  const v = g.createLinearGradient(0, 0, 0, 256)
+  v.addColorStop(0, 'rgba(0,0,0,0)')
+  v.addColorStop(0.3, 'rgba(0,0,0,1)')
+  v.addColorStop(0.7, 'rgba(0,0,0,1)')
+  v.addColorStop(1, 'rgba(0,0,0,0)')
+  g.fillStyle = v
+  g.fillRect(0, 0, 512, 256)
+  return tex(c, { aniso: 4 })
 }
 
 // ---------------------------------------------------------------- charger
@@ -498,12 +569,8 @@ export function makeScreen() {
     g.fillStyle = bg
     g.fillRect(0, 0, W, H)
     // header
-    pinPath(g, 40, 38, 1.5)
-    g.fillStyle = '#fff'
-    g.font = '800 26px Inter Variable, Arial, sans-serif'
-    g.textAlign = 'left'
+    drawLogo(g, 24, 16, 44, '#ffffff')
     g.textBaseline = 'middle'
-    g.fillText('Chargezio', 66, 38)
     g.fillStyle = '#7fe3ab'
     g.font = '600 15px Inter Variable, Arial, sans-serif'
     g.textAlign = 'right'
@@ -614,12 +681,9 @@ export function makeChargerLabel() {
   g.fillRect(0, 0, 512, 256)
   g.fillStyle = '#05C158'
   g.fillRect(0, 0, 512, 12)
-  pinPath(g, 70, 100, 3.4)
-  g.fillStyle = '#14171c'
+  drawLogo(g, 36, 56, 90, '#000000')
   g.textAlign = 'left'
   g.textBaseline = 'middle'
-  g.font = '800 64px Inter Variable, Arial, sans-serif'
-  g.fillText('Chargezio', 130, 100)
   g.fillStyle = '#616274'
   g.font = '600 24px Inter Variable, Arial, sans-serif'
   g.fillText('DC FAST CHARGER  ·  CCS2  ·  60 kW', 36, 170)

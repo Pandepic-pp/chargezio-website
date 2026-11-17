@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { detectQuality, hasWebGL, story } from './story'
 import { initScroll, scrollToId } from './scroll'
+import { initSound } from './audio'
 import { useRoute } from './router'
 import { Footer, Header, Logo } from './ui'
 import type { Path } from './paths/types'
@@ -20,17 +21,28 @@ function Caption({ a, b, wide, children }: { a: number; b: number; wide?: boolea
   )
 }
 
+// #partners and #drivers open that path; the anchors inside the partner path (#partner-how, #partner-form) belong to it too.
 const pathFromHash = (): Path | null => {
   const h = location.hash.replace('#', '')
-  return h === 'partners' || h === 'drivers' ? h : null
+  if (h === 'partners' || h === 'drivers') return h
+  return h === 'partner-how' || h === 'partner-form' ? 'partners' : null
 }
 
 function Home() {
   const storyRef = useRef<HTMLElement>(null)
   const [webgl] = useState(hasWebGL)
   const [quality] = useState(() => detectQuality())
-  const [ready, setReady] = useState(!webgl)
+  // The loading screen is only for the first visit: coming back from another page the scene is already cached.
+  const [ready, setReady] = useState(() => !webgl || story.loaderDone)
   const [path, setPath] = useState<Path | null>(pathFromHash)
+
+  useEffect(() => {
+    if (ready) story.loaderDone = true
+    if (!webgl) {
+      story.introDone = true
+      document.documentElement.classList.remove('intro')
+    }
+  }, [ready, webgl])
 
   useEffect(() => {
     story.quality = quality
@@ -44,10 +56,26 @@ function Home() {
     return () => clearTimeout(t)
   }, [])
 
-  // A link like /#partners opens straight on that path.
+  // A link like /#partners opens straight on that path. The opening shot is fast-forwarded first, since scrolling is locked until it ends.
   useEffect(() => {
     if (!pathFromHash()) return
-    const t = setTimeout(() => scrollToId('path', 90, true), 700)
+    if (!story.introDone) story.introSpeed = 7
+    let t = 0
+    const go = () => {
+      if (story.introDone) {
+        const id = location.hash.slice(1)
+        t = window.setTimeout(() => (document.getElementById(id) && id.startsWith('partner-') ? scrollToId(id, 80, true) : scrollToId('path', 90, true)), 700)
+      }
+      else t = window.setTimeout(go, 300)
+    }
+    go()
+    return () => clearTimeout(t)
+  }, [])
+
+  // /#choose (the "Get started" button on other pages) lands on the choice; scrollToId waits for the opening shot.
+  useEffect(() => {
+    if (location.hash !== '#choose') return
+    const t = window.setTimeout(() => scrollToId('choose', 0, true), 700)
     return () => clearTimeout(t)
   }, [])
 
@@ -66,13 +94,7 @@ function Home() {
         </div>
       </div>
 
-      <Header
-        cta={
-          <button className="btn btn-sm" type="button" onClick={() => scrollToId('choose')}>
-            Get started
-          </button>
-        }
-      />
+      <Header />
       <div className="topbar" aria-hidden="true">
         <i />
       </div>
@@ -206,6 +228,9 @@ function Home() {
 
 export default function App() {
   const route = useRoute()
+
+  // The sound switch and its first-click unlock live above the pages, so the sound carries on between them.
+  useEffect(() => initSound(), [])
 
   useEffect(() => {
     if (!location.hash) window.scrollTo(0, 0)

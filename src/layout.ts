@@ -1,6 +1,5 @@
 import * as THREE from 'three'
 import { clamp, smooth } from './story'
-import { portFrame } from './scene/carShape'
 
 // One place for the story timeline and the key positions. The 3D scene and the camera both read from
 // here, so the camera can frame exactly what the story is showing.
@@ -10,6 +9,17 @@ export const KERB_Z = 1.3
 export const PAVE_Y = 0.14
 export const STATION = new THREE.Vector3(-3.5, PAVE_Y, 1.9)
 
+// Charge port of the BE 6 model (public/models/be6.glb): centre of the opening on the near rear quarter,
+// with the outward skin normal there (metres, car local, faces +X, +Z is the side the camera sees).
+function portFrame() {
+  const pos = new THREE.Vector3(-1.674, 0.99, 0.894)
+  const n = new THREE.Vector3(-0.04, 0.18, 0.983).normalize()
+  const up = new THREE.Vector3(0, 1, 0)
+  const x = new THREE.Vector3().crossVectors(up, n).normalize()
+  const y = new THREE.Vector3().crossVectors(n, x).normalize()
+  const quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, n))
+  return { pos, n, quat }
+}
 export const PORT = portFrame()
 export const PLUG_TIP = PORT.pos.clone().addScaledVector(PORT.n, -0.06)
 export const APPROACH = PORT.pos.clone().addScaledVector(PORT.n, 0.66)
@@ -59,28 +69,39 @@ function carXZ(d: number): [number, number] {
   return [30 * Math.pow(d, 1.7), -2.9 * smooth(0.1, 0.8, d)]
 }
 
-export function carPose(p: number) {
-  const d = clamp((p - D0) / (D1 - D0))
-  const [x, z] = carXZ(d)
+// Arrival: the car comes along the lane, slows, turns off the road and stops in the bay (x = 0, z = 0).
+export const ARRIVE_FROM = 26
+function arriveXZ(a: number): [number, number] {
+  return [-ARRIVE_FROM * Math.pow(1 - a, 1.8), -2.9 * (1 - smooth(0.22, 0.9, a))]
+}
+
+type Path = (d: number) => [number, number]
+function poseOn(path: Path, d: number) {
+  const [x, z] = path(d)
   const e = 0.004
-  const [x1, z1] = carXZ(Math.min(1, d + e))
-  const [x0, z0] = carXZ(Math.max(0, d - e))
+  const [x1, z1] = path(Math.min(1, d + e))
+  const [x0, z0] = path(Math.max(0, d - e))
   const dx = x1 - x0
   const dz = z1 - z0
   const yaw = dx > 1e-5 ? Math.atan2(-dz, dx) : 0
   const yaw1 = (() => {
-    const [xa, za] = carXZ(Math.min(1, d + 3 * e))
+    const [xa, za] = path(Math.min(1, d + 3 * e))
     const dxa = xa - x1
     return dxa > 1e-5 ? Math.atan2(-(za - z1), dxa) : 0
   })()
   const ds = Math.hypot(dx, dz) || 1
   const steer = clamp(Math.atan(2.78 * ((yaw1 - yaw) / (ds * 1.5))), -0.45, 0.45)
-  return {
-    x,
-    z,
-    yaw,
-    steer: dx > 1e-5 ? steer : 0,
-    travel: x / Math.max(0.2, Math.cos(yaw)),
-    pitch: 0.016 * smooth(0, 0.1, d) * (1 - smooth(0.2, 0.6, d)),
-  }
+  return { x, z, yaw, steer: dx > 1e-5 ? steer : 0, travel: x / Math.max(0.2, Math.cos(yaw)) }
+}
+
+export function carPose(p: number) {
+  const d = clamp((p - D0) / (D1 - D0))
+  return { ...poseOn(carXZ, d), pitch: 0.016 * smooth(0, 0.1, d) * (1 - smooth(0.2, 0.6, d)) }
+}
+
+// a: 0 (far down the road) .. 1 (stopped in the bay). Used by the opening shot.
+export function arrivalPose(a: number) {
+  const d = clamp(a)
+  // nose dips a little as the car brakes
+  return { ...poseOn(arriveXZ, d), pitch: -0.014 * smooth(0.55, 0.85, d) * (1 - smooth(0.9, 1, d)) }
 }

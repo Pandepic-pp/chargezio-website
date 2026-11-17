@@ -9,6 +9,7 @@ export const smooth = (a: number, b: number, x: number) => {
 }
 
 export type Quality = 'high' | 'low'
+export type Theme = 'light' | 'dark'
 
 export const story = {
   progress: 0, // raw scroll progress through the story, 0 to 1
@@ -19,7 +20,19 @@ export const story = {
   dirty: 4, // force a few renders after mount or resize
   advance: null as null | ((timeMs: number) => void),
   onSlow: null as null | (() => void),
+  // Opening shot: bird's-eye view of the city, slow zoom to the car, then the camera settles into the hero shot.
+  // Scrolling is locked until it ends.
+  loaderDone: false, // the loading screen has gone
+  carReady: false, // the car model has been added to the scene
+  introDone: false,
+  introT: 0, // seconds into the opening shot
+  theme: 'light' as Theme,
+  night: 0, // 0 (day) .. 1 (night), eased towards the chosen theme every frame
+  introSpeed: 1, // raised when the viewer tries to scroll, to skip ahead
+  onIntroDone: null as null | (() => void),
 }
+
+export const INTRO_SECONDS = 12 // the camera work is laid out on a 15 s design timeline (camera.ts) and squeezed to this
 
 export function detectQuality(): Quality {
   if (import.meta.env.DEV && new URLSearchParams(location.search).get('q') === 'low') return 'low'

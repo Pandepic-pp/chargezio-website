@@ -34,7 +34,7 @@ export default function Experience({ quality, onReady }: { quality: Quality; onR
       className="gl"
       frameloop="never"
       dpr={dpr}
-      camera={{ fov: 34, near: 0.25, far: 260, position: [3.2, 1.7, 8.4] }}
+      camera={{ fov: 34, near: 0.25, far: 460, position: [3.2, 1.7, 8.4] }}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.NeutralToneMapping
@@ -43,8 +43,8 @@ export default function Experience({ quality, onReady }: { quality: Quality; onR
       }}
       aria-hidden="true"
     >
-      <color attach="background" args={['#F3F8FE']} />
-      <fog attach="fog" args={['#F3F8FE', 16, 90]} />
+      <color attach="background" args={[story.theme === 'dark' ? '#060a13' : '#F3F8FE']} />
+      <fog attach="fog" args={[story.theme === 'dark' ? '#060a13' : '#F3F8FE', 16, 90]} />
       <Driver />
       <World quality={quality} />
     </Canvas>

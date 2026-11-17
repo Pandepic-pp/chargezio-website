@@ -16,6 +16,7 @@ import {
   buildStationDetails,
   buildStationLeds,
 } from './chargerParts'
+import { useInk } from './ink'
 import { makeChargerLabel, makeHatch, makePulse, makeRadial, makeScreen, type ScreenState } from './textures'
 
 const GREEN = '#05C158'
@@ -219,6 +220,13 @@ export function Charger({ high }: { high: boolean }) {
     if (riseGlow.current) riseGlow.current.opacity = 0.9 * moving
   })
 
+  const cabRef = useRef<THREE.Mesh>(null)
+  const connRef = useRef<THREE.Mesh>(null)
+  const shoulderRef = useRef<THREE.Mesh>(null)
+  useInk(cabRef, { width: 2.2 })
+  useInk(connRef, { width: 1.6 })
+  useInk(shoulderRef, { width: 1.6 })
+
   const white = <meshPhysicalMaterial color="#f3f5f6" roughness={0.34} clearcoat={0.5} clearcoatRoughness={0.2} />
   const black = <meshPhysicalMaterial color="#121418" roughness={0.38} clearcoat={0.4} />
 
@@ -235,7 +243,7 @@ export function Charger({ high }: { high: boolean }) {
       </mesh>
 
       <group ref={station}>
-        <mesh geometry={geo.cabinet}>{white}</mesh>
+        <mesh ref={cabRef} geometry={geo.cabinet}>{white}</mesh>
         <mesh geometry={geo.details}>
           <meshStandardMaterial vertexColors roughness={0.5} metalness={0.2} />
         </mesh>
@@ -254,8 +262,8 @@ export function Charger({ high }: { high: boolean }) {
 
       {/* connector and cable live in world space so the car can drive away */}
       <group ref={conn}>
-        <mesh geometry={geo.body}>{black}</mesh>
-        <mesh geometry={geo.shoulder}>
+        <mesh ref={connRef} geometry={geo.body}>{black}</mesh>
+        <mesh ref={shoulderRef} geometry={geo.shoulder}>
           <meshStandardMaterial color="#6d747e" roughness={0.45} metalness={0.5} />
         </mesh>
         <mesh geometry={geo.metal}>

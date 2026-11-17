@@ -8,7 +8,17 @@ gsap.registerPlugin(ScrollTrigger)
 let lenisRef: Lenis | null = null
 
 // Scroll to an element by id. Uses Lenis when it is running so the motion matches the rest of the site.
+// While the opening shot plays scrolling is locked, so a click is queued: it fast-forwards the shot, then scrolls.
 export function scrollToId(id: string, offset = 0, immediate = false) {
+  if (!story.introDone) {
+    story.introSpeed = 7
+    const wait = setInterval(() => {
+      if (!story.introDone) return
+      clearInterval(wait)
+      setTimeout(() => scrollToId(id, offset, immediate), 450)
+    }, 200)
+    return
+  }
   const el = document.getElementById(id)
   if (!el) return
   const y = el.getBoundingClientRect().top + window.scrollY - offset
@@ -16,14 +26,19 @@ export function scrollToId(id: string, offset = 0, immediate = false) {
     // New content may have just changed the page height; re-measure so the target is not clamped.
     lenisRef.resize()
     lenisRef.scrollTo(y, { immediate })
-  }
-  else window.scrollTo({ top: y, behavior: immediate || story.reduced ? 'auto' : 'smooth' })
+  } else window.scrollTo({ top: y, behavior: immediate || story.reduced ? 'auto' : 'smooth' })
+}
+
+export function scrollToTop() {
+  if (lenisRef) lenisRef.scrollTo(0)
+  else window.scrollTo({ top: 0, behavior: story.reduced ? 'auto' : 'smooth' })
 }
 
 // One ticker drives everything: Lenis smooth scroll, story progress, DOM captions,
 // the charging HUD and the 3D render. Nothing here goes through React state.
 export function initScroll(el: HTMLElement) {
   story.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+  // The home page can be mounted again (coming back from another page), so start the story from the top.
   story.progress = 0
   story.smooth = 0
 
@@ -68,6 +83,20 @@ export function initScroll(el: HTMLElement) {
   lenisRef = lenis
   gsap.ticker.lagSmoothing(0)
 
+  // The opening shot plays with scrolling locked. Any attempt to scroll fast-forwards it.
+  if (story.reduced) story.introDone = true
+  let locked = !story.introDone
+  if (locked) lenis?.stop()
+  const skip = () => {
+    if (!story.introDone) story.introSpeed = 7
+  }
+  const skipKeys = (e: KeyboardEvent) => {
+    if (['ArrowDown', 'PageDown', ' ', 'End', 'Enter'].includes(e.key)) skip()
+  }
+  window.addEventListener('wheel', skip, { passive: true })
+  window.addEventListener('touchstart', skip, { passive: true })
+  window.addEventListener('keydown', skipKeys)
+
   let lastSmooth = -1
   let lastRender = 0
   let slow = 0
@@ -75,6 +104,11 @@ export function initScroll(el: HTMLElement) {
   const RING = 2 * Math.PI * 38
 
   const tick = (time: number, dt: number) => {
+    if (locked && story.introDone) {
+      locked = false
+      lenis?.start()
+      story.dirty = 4
+    }
     lenis?.raf(time * 1000)
 
     const raw = clamp((window.scrollY - top) / total)
@@ -117,7 +151,7 @@ export function initScroll(el: HTMLElement) {
     }
 
     // Render only when something changed or the scene is animating on its own.
-    const animated = !story.reduced && (s < 0.14 || (s > 0.36 && s < 0.6))
+    const animated = !story.reduced && (!story.introDone || s < 0.14 || (s > 0.36 && s < 0.6))
     if (story.visible && story.advance && (moving || animated || story.dirty > 0)) {
       story.advance(time * 1000)
       if (story.dirty > 0) story.dirty--
@@ -154,10 +188,13 @@ export function initScroll(el: HTMLElement) {
 
   return () => {
     gsap.ticker.remove(tick)
+    lenisRef = null
     ctx.revert()
     lenis?.destroy()
-    lenisRef = null
     ro.disconnect()
     window.removeEventListener('resize', measure)
+    window.removeEventListener('wheel', skip)
+    window.removeEventListener('touchstart', skip)
+    window.removeEventListener('keydown', skipKeys)
   }
 }

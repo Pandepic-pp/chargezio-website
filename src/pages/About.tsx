@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Link } from '../router'
 import { Footer, Header } from '../ui'
+import { story } from '../story'
 
 // Founder details are placeholders until the real names, roles, bios and photos are supplied.
 const founders = [
@@ -10,6 +11,11 @@ const founders = [
 ]
 
 export default function About() {
+  // Opening on this page first: the sound is gated on the loader, which only the home page sets.
+  useEffect(() => {
+    story.loaderDone = true
+  }, [])
+
   useEffect(() => {
     const prev = document.title
     document.title = 'About us | Chargezio'
@@ -20,13 +26,7 @@ export default function About() {
 
   return (
     <>
-      <Header
-        cta={
-          <Link className="btn btn-sm" to="/">
-            Back to home
-          </Link>
-        }
-      />
+      <Header />
       <main>
         <section className="ab-hero">
           <div className="wrap">

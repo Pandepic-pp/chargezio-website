@@ -5,6 +5,10 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { story } from '../story'
 import { KERB_Z, PAVE_Y, STATION, phases } from '../layout'
 import { merge } from './math'
+import { useInk } from './ink'
+import { Station, STATION_HALF } from './Station'
+import { City } from './City'
+import { CROSS_A, CROSS_B, ROAD_W } from './cityLayout'
 import {
   makeArrow,
   makeAsphalt,
@@ -13,6 +17,7 @@ import {
   makeEvBay,
   makeEvSymbol,
   makeFacade,
+  makeFacadeGlow,
   makeManhole,
   makePaintWear,
   makePaving,
@@ -165,10 +170,55 @@ function LampPosts() {
     o.position.set(xs[i], PAVE_Y, FAR_KERB_Z - 0.9)
     o.rotation.y = -Math.PI / 2 // arm reaches over the road
   })
+  useInk(ref, { width: 1.8 })
+
+  // lamp heads glow at night, throw a pool of warm light on the road, and the two nearest ones really light the scene
+  const lampGeo = useMemo(() => {
+    const g = new THREE.PlaneGeometry(0.58, 0.2)
+    g.rotateX(Math.PI / 2)
+    g.translate(1.25, 6.225, 0)
+    return g
+  }, [])
+  const lamps = useInstances(xs.length, (i, o) => {
+    o.position.set(xs[i], PAVE_Y, FAR_KERB_Z - 0.9)
+    o.rotation.y = -Math.PI / 2
+  })
+  const poolGeo = useMemo(() => {
+    const g = new THREE.PlaneGeometry(11, 11)
+    g.rotateX(-Math.PI / 2)
+    return g
+  }, [])
+  const poolTex = useMemo(() => makeRadial('rgba(255,214,150,0.95)', 'rgba(255,214,150,0)'), [])
+  const pools = useInstances(xs.length, (i, o) => {
+    o.position.set(xs[i], 0.009, FAR_KERB_Z + 1.0)
+  })
+  const lampMat = useRef<THREE.MeshBasicMaterial>(null)
+  const poolMat = useRef<THREE.MeshBasicMaterial>(null)
+  const l1 = useRef<THREE.PointLight>(null)
+  const l2 = useRef<THREE.PointLight>(null)
+  const cool = useMemo(() => new THREE.Color('#8a919a'), [])
+  const warm = useMemo(() => new THREE.Color('#fff0c8'), [])
+  useFrame(() => {
+    const n = story.night
+    if (lampMat.current) lampMat.current.color.lerpColors(cool, warm, n)
+    if (poolMat.current) poolMat.current.opacity = 0.6 * n
+    if (l1.current) l1.current.intensity = 70 * n
+    if (l2.current) l2.current.intensity = 70 * n
+  })
   return (
-    <instancedMesh ref={ref} args={[geo, undefined, xs.length]} frustumCulled={false}>
-      <meshStandardMaterial color="#59616c" roughness={0.55} metalness={0.5} />
-    </instancedMesh>
+    <>
+      <instancedMesh ref={ref} args={[geo, undefined, xs.length]} frustumCulled={false}>
+        <meshStandardMaterial color="#59616c" roughness={0.55} metalness={0.5} />
+      </instancedMesh>
+      <instancedMesh ref={lamps} args={[lampGeo, undefined, xs.length]} frustumCulled={false}>
+        <meshBasicMaterial ref={lampMat} color="#8a919a" toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={pools} args={[poolGeo, undefined, xs.length]} frustumCulled={false} renderOrder={3}>
+        <meshBasicMaterial ref={poolMat} map={poolTex} transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+      </instancedMesh>
+      <pointLight ref={l1} position={[-13, PAVE_Y + 6.0, FAR_KERB_Z + 0.5]} color="#ffd9a0" intensity={0} distance={26} decay={2} />
+      <pointLight ref={l2} position={[13, PAVE_Y + 6.0, FAR_KERB_Z + 0.5]} color="#ffd9a0" intensity={0} distance={26} decay={2} />
+    </>
   )
 }
 
@@ -213,6 +263,7 @@ function Trees() {
     o.scale.setScalar(s)
     o.rotation.y = rand() * 6
   })
+  useInk(ref, { width: 1.8 })
   return (
     <instancedMesh ref={ref} args={[geo, undefined, xs.length]} frustumCulled={false}>
       <meshStandardMaterial vertexColors roughness={0.9} />
@@ -220,23 +271,61 @@ function Trees() {
   )
 }
 
+// A grey city: rows of towers behind both pavements of the main road and further out, with gaps left for the cross roads,
+// the avenue and the roundabouts. Boxes are instanced, with ink outlines.
+const ROWS: { z: number; jit: number }[] = [
+  { z: -37, jit: 4 },
+  { z: -66, jit: 8 },
+  { z: -104, jit: 6 },
+  { z: -138, jit: 6 },
+  { z: -172, jit: 6 },
+  { z: 38, jit: 3 },
+  { z: 58, jit: 4 },
+  { z: 128, jit: 6 },
+  { z: 160, jit: 8 },
+  { z: 196, jit: 6 },
+]
 function Buildings() {
   const facade = useMemo(() => makeFacade(5), [])
-  const rand = useMemo(() => seeded(19), [])
-  const n = 36
-  const tints = ['#f3f6fb', '#eef1f7', '#f7efe6', '#e8eef5', '#f1f4ee', '#fbf3f3']
-  const ref = useInstances(n, (i, o, c) => {
-    const row = i % 2
-    const w = 12 + rand() * 9
-    const h = 14 + rand() * 22
-    o.position.set(X0 + 6 + (i >> 1) * 20 + rand() * 4, h / 2, row === 0 ? -36 - rand() * 4 : -64 - rand() * 8)
-    o.scale.set(w, h, 12 + rand() * 4)
-    c.set(tints[Math.floor(rand() * tints.length)])
+  const glow = useMemo(() => makeFacadeGlow(5), [])
+  const mat = useRef<THREE.MeshStandardMaterial>(null)
+  useFrame(() => {
+    // windows light up at night
+    if (mat.current) mat.current.emissiveIntensity = 0.95 * story.night
   })
+  const tints = ['#9aa0a8', '#8c939c', '#a3a5a7', '#868d97', '#979a9b', '#9094a0']
+  const items = useMemo(() => {
+    const rand = seeded(19)
+    const out: { x: number; z: number; w: number; h: number; d: number; c: string }[] = []
+    for (const row of ROWS) {
+      for (let x = X0 - 100; x < X1 + 80; x += 20) {
+        const w = 12 + rand() * 9
+        let h = 14 + rand() * 24
+        const d = 12 + rand() * 4
+        const px = x + rand() * 5
+        const pz = row.z + (row.z < 0 ? -1 : 1) * rand() * row.jit
+        const c = tints[Math.floor(rand() * tints.length)]
+        // low-rise on the near side between the main road and the avenue, so the opening shot's chase camera can fly over it
+        if (row.z > 0 && row.z < 100 && px > -130 && px < 64) h = 7 + (h % 5)
+        // keep clear of the cross roads (and the avenue for the rows that would reach it)
+        const clear = ROAD_W / 2 + 7 + 6
+        if (Math.abs(px - CROSS_A) < w / 2 + clear || Math.abs(px - CROSS_B) < w / 2 + clear) continue
+        out.push({ x: px, z: pz, w, h, d, c })
+      }
+    }
+    return out
+  }, [])
+  const ref = useInstances(items.length, (i, o, c) => {
+    const b = items[i]
+    o.position.set(b.x, b.h / 2, b.z)
+    o.scale.set(b.w, b.h, b.d)
+    c.set(b.c)
+  })
+  useInk(ref, { box: true, width: 2.2 })
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, n]} frustumCulled={false}>
+    <instancedMesh ref={ref} args={[undefined, undefined, items.length]} frustumCulled={false}>
       <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial map={facade} roughness={0.85} />
+      <meshStandardMaterial ref={mat} map={facade} emissiveMap={glow} emissive="#ffffff" emissiveIntensity={0} roughness={0.9} />
     </instancedMesh>
   )
 }
@@ -260,6 +349,7 @@ function Bollards() {
   ]
   const a = useInstances(pts.length, (i, o) => o.position.set(pts[i][0], PAVE_Y, pts[i][1]))
   const b = useInstances(pts.length, (i, o) => o.position.set(pts[i][0], PAVE_Y, pts[i][1]))
+  useInk(a, { width: 1.6 })
   return (
     <>
       <instancedMesh ref={a} args={[geo, undefined, pts.length]} frustumCulled={false}>
@@ -322,6 +412,23 @@ function Furniture() {
   )
 }
 
+const CROSS_GAPS: [number, number][] = [
+  [CROSS_A - ROAD_W / 2, CROSS_A + ROAD_W / 2],
+  [CROSS_B - ROAD_W / 2, CROSS_B + ROAD_W / 2],
+]
+// the stretches of kerb between the gaps, from X0 to X1
+function kerbSegments(gaps: [number, number][]): [number, number][] {
+  const sorted = [...gaps].sort((a, b) => a[0] - b[0])
+  const out: [number, number][] = []
+  let x = X0
+  for (const [g0, g1] of sorted) {
+    if (g0 > x) out.push([x, g0])
+    x = g1
+  }
+  if (x < X1) out.push([x, X1])
+  return out
+}
+
 export function Road({ high }: { high: boolean }) {
   const asphalt = useMemo(() => {
     const t = makeAsphalt(high ? 1024 : 512)
@@ -330,7 +437,7 @@ export function Road({ high }: { high: boolean }) {
   }, [high])
   const paving = useMemo(() => {
     const t = makePaving(high ? 1024 : 512)
-    t.repeat.set(LEN / 3.2, 40 / 3.2)
+    t.repeat.set(LEN / 3.2, 30 / 3.2)
     return t
   }, [high])
   const farPaving = useMemo(() => {
@@ -400,34 +507,41 @@ export function Road({ high }: { high: boolean }) {
 
   return (
     <>
+      {/* ground under the whole city, so the bird's-eye shot has no gaps between the blocks */}
+      <mesh rotation-x={-Math.PI / 2} position={[CX, -0.03, 0]}>
+        <planeGeometry args={[LEN + 1000, 1000]} />
+        <meshStandardMaterial color="#6f747c" roughness={1} />
+      </mesh>
       {/* asphalt */}
       <mesh rotation-x={-Math.PI / 2} position={[CX, 0, (1.3 + FAR_KERB_Z) / 2]}>
         <planeGeometry args={[LEN, 1.3 - FAR_KERB_Z]} />
-        <meshStandardMaterial map={asphalt} bumpMap={asphalt} bumpScale={high ? 1.4 : 0} roughness={0.96} />
+        <meshStandardMaterial map={asphalt} color="#9a9a9a" bumpMap={asphalt} bumpScale={high ? 1.4 : 0} roughness={0.96} />
       </mesh>
       {/* pavements */}
-      <mesh rotation-x={-Math.PI / 2} position={[CX, PAVE_Y, 1.46 + 20]}>
-        <planeGeometry args={[LEN, 40]} />
-        <meshStandardMaterial map={paving} roughness={0.9} />
+      <mesh rotation-x={-Math.PI / 2} position={[CX, PAVE_Y, 1.46 + 15]}>
+        <planeGeometry args={[LEN, 30]} />
+        <meshStandardMaterial map={paving} color="#b4b8be" roughness={0.9} />
       </mesh>
       <mesh rotation-x={-Math.PI / 2} position={[CX, PAVE_Y, FAR_KERB_Z - 0.16 - 25]}>
         <planeGeometry args={[LEN, 50]} />
-        <meshStandardMaterial map={farPaving} roughness={0.9} />
+        <meshStandardMaterial map={farPaving} color="#b4b8be" roughness={0.9} />
       </mesh>
-      {/* kerbs */}
-      <mesh position={[CX, PAVE_Y / 2, KERB_Z + 0.08]}>
-        <boxGeometry args={[LEN, PAVE_Y, 0.16]} />
-        <meshStandardMaterial map={concrete} roughness={0.85} />
-      </mesh>
-      <mesh position={[CX, PAVE_Y / 2, FAR_KERB_Z - 0.08]}>
-        <boxGeometry args={[LEN, PAVE_Y, 0.16]} />
-        <meshStandardMaterial map={concrete} roughness={0.85} />
-      </mesh>
-      {/* painted kerb stones along the EV bay */}
-      <mesh position={[0, PAVE_Y + 0.001, KERB_Z + 0.08]}>
-        <boxGeometry args={[6.5, PAVE_Y, 0.165]} />
-        <meshStandardMaterial color="#e9e6dc" roughness={0.7} />
-      </mesh>
+      {/* kerbs, with gaps for the station's dropped kerb and the cross roads */}
+      {kerbSegments([[-STATION_HALF, STATION_HALF], ...CROSS_GAPS]).map(([x0, x1]) => (
+        <mesh key={'n' + x0} position={[(x0 + x1) / 2, PAVE_Y / 2, KERB_Z + 0.08]}>
+          <boxGeometry args={[x1 - x0, PAVE_Y, 0.16]} />
+          <meshStandardMaterial map={concrete} roughness={0.85} />
+        </mesh>
+      ))}
+      {kerbSegments(CROSS_GAPS).map(([x0, x1]) => (
+        <mesh key={'f' + x0} position={[(x0 + x1) / 2, PAVE_Y / 2, FAR_KERB_Z - 0.08]}>
+          <boxGeometry args={[x1 - x0, PAVE_Y, 0.16]} />
+          <meshStandardMaterial map={concrete} roughness={0.85} />
+        </mesh>
+      ))}
+
+      <Station />
+      <City high={high} />
 
       {/* gutter dirt and tyre tracks */}
       <Decal map={gutter} size={[LEN, 0.55]} pos={[CX, KERB_Z - 0.275]} y={0.0025} />
