@@ -1595,3 +1595,102 @@ html:not(.intro) .dream {
     animation: none;
   }
 }
+/* ---------- drivers: app flow ---------- */
+.flow {
+  margin-top: clamp(32px, 4vw, 56px);
+}
+.flow-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-inline: var(--pad);
+}
+.flow-count {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.flow-nav {
+  display: flex;
+  gap: 10px;
+}
+.flow-nav button {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.flow-nav button:hover {
+  border-color: var(--green);
+  background: var(--green-s);
+}
+.flow-track {
+  list-style: none;
+  margin: 0;
+  padding: 8px var(--pad) 28px;
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--pad);
+  scrollbar-width: thin;
+}
+.flow-step {
+  flex: 0 0 clamp(230px, 24vw, 290px);
+  scroll-snap-align: start;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  position: relative;
+}
+.flow-num {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+.flow-phone {
+  border-radius: 34px;
+  border: 7px solid #0e1116;
+  background: #0e1116;
+  overflow: hidden;
+  box-shadow: 0 40px 70px -40px rgba(0, 0, 0, 0.45);
+  aspect-ratio: 720 / 1565;
+}
+.flow-phone img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.flow-step h3 {
+  margin: 10px 0 0;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+.flow-step p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-nav button {
+    transition: none;
+  }
+}

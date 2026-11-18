@@ -1,105 +1,66 @@
+import { useRef } from 'react'
 import { StoreButtons } from '../ui'
 import type { Path } from './types'
 
+// Real screens captured from the Chargezio app, in the order a driver meets them.
+const steps = [
+  { img: 'sign-in', t: 'Sign in with your number', p: 'Enter your mobile number and a one-time code. No password to remember.', alt: 'Chargezio sign in screen with a mobile number field' },
+  { img: 'find', t: 'Find chargers near you', p: 'See nearby stations on a live map. Filter by DC fast or AC.', alt: 'Home screen with a live map and a list of nearby chargers' },
+  { img: 'station', t: 'Check the station', p: 'Photos, address, opening hours and reviews before you drive over.', alt: 'Station details with photos, directions and reviews' },
+  { img: 'charging', t: 'Charge and watch it live', p: 'Battery level, power, energy and cost update as you charge.', alt: 'Live charging session with battery percentage, power and cost' },
+  { img: 'trip-planner', t: 'Plan the long drive', p: 'Pick a destination and get a route with the charging stops worked out.', alt: 'Trip planner showing a route with a charging stop' },
+  { img: 'history', t: 'Keep every session', p: 'Your charging history, spend and energy used, all in one list.', alt: 'My Trips screen with charging history and totals' },
+  { img: 'profile', t: 'Your car, your account', p: 'Save your EV, manage payments and see your charging stats.', alt: 'Profile screen with vehicle details and account stats' },
+]
+
 export default function DriversPath({ onSwitch }: { onSwitch: (p: Path) => void }) {
+  const track = useRef<HTMLOListElement>(null)
+
+  const slide = (dir: 1 | -1) => {
+    const el = track.current
+    if (!el) return
+    const step = el.querySelector('li')?.getBoundingClientRect().width ?? 300
+    el.scrollBy({ left: dir * (step + 24), behavior: 'smooth' })
+  }
+
   return (
     <div className="path-in">
       <section className="section">
         <div className="wrap">
           <div className="head">
             <span className="eyebrow">For EV drivers</span>
-            <h2>Everything for the road ahead.</h2>
-            <p>Wallet, trips and route planning in one place.</p>
+            <h2>See how Chargezio works.</h2>
+            <p>From sign in to the road. These are the real screens, in the order you will use them.</p>
           </div>
+        </div>
 
-          <div className="phones">
-            <figure className="phone-wrap">
-              <div className="phone" role="img" aria-label="Wallet and payments screen">
-                <div className="ph-head">
-                  <b>Wallet &amp; Payments</b>
-                  <span>Manage your balance and transactions</span>
-                </div>
-                <div className="balance">
-                  <span>Chargezio Wallet Balance</span>
-                  <strong>₹2,450.00</strong>
-                  <em>Add Money</em>
-                </div>
-                <div className="chips">
-                  <i>₹500</i>
-                  <i>₹1,000</i>
-                  <i>₹2,000</i>
-                </div>
-                <div className="row">
-                  <span>Primary</span>
-                  <b>Chargezio Wallet</b>
-                </div>
-                <div className="row">
-                  <span>Linked</span>
-                  <b>Paytm Wallet</b>
-                </div>
-              </div>
-              <figcaption>Wallet</figcaption>
-            </figure>
-
-            <figure className="phone-wrap mid">
-              <div className="phone" role="img" aria-label="My trips screen">
-                <div className="ph-head">
-                  <b>My Trips</b>
-                  <span>Your charging session history</span>
-                </div>
-                <div className="stats">
-                  <div><b>28</b><span>Sessions</span></div>
-                  <div><b>₹3,248</b><span>Spent</span></div>
-                  <div><b>168 kWh</b><span>Energy</span></div>
-                </div>
-                <div className="card">
-                  <div className="card-top">
-                    <div><b>ChargeOne Ecospace</b><span>Bellandur, Bengaluru</span></div>
-                    <div className="amt"><b>₹166.75</b><em>Completed</em></div>
-                  </div>
-                  <div className="meta"><span>18.5 kWh</span><span>48 min</span><span>76 kW</span></div>
-                </div>
-                <div className="card">
-                  <div className="card-top">
-                    <div><b>BPCL EV Point</b><span>Koramangala, Bengaluru</span></div>
-                    <div className="amt"><b>₹82.80</b><em>Completed</em></div>
-                  </div>
-                  <div className="meta"><span>9.2 kWh</span><span>22 min</span><span>60 kW</span></div>
-                </div>
-              </div>
-              <figcaption>Trips</figcaption>
-            </figure>
-
-            <figure className="phone-wrap">
-              <div className="phone" role="img" aria-label="Trip planner screen">
-                <div className="ph-head">
-                  <b>Trip Planner</b>
-                  <span>Plan your EV journey</span>
-                </div>
-                <div className="route">
-                  <div><span>From</span><b>Bengaluru, Karnataka</b></div>
-                  <div><span>To</span><b>Madikeri, Coorg</b></div>
-                </div>
-                <div className="modes">
-                  <div className="on"><b>Fastest</b><span>4h 10m</span></div>
-                  <div><b>Balanced</b><span>4h 35m</span></div>
-                  <div><b>Eco</b><span>5h 20m</span></div>
-                </div>
-                <div className="map" aria-hidden="true">
-                  <svg viewBox="0 0 200 110" preserveAspectRatio="none">
-                    <path d="M12 92 C50 90 60 40 100 50 S160 20 188 18" fill="none" stroke="#05C158" strokeWidth="4" strokeLinecap="round" />
-                    <circle cx="12" cy="92" r="6" fill="#fff" stroke="#05C158" strokeWidth="3" />
-                    <circle cx="188" cy="18" r="6" fill="#05C158" />
-                    <circle cx="82" cy="46" r="5" fill="#25C96D" />
-                    <circle cx="140" cy="36" r="5" fill="#25C96D" />
-                  </svg>
-                </div>
-                <div className="pill">2 enroute chargers</div>
-              </div>
-              <figcaption>Trip planner</figcaption>
-            </figure>
+        <div className="flow">
+          <div className="flow-bar wrap">
+            <span className="flow-count">{steps.length} steps</span>
+            <div className="flow-nav">
+              <button type="button" aria-label="Previous screens" onClick={() => slide(-1)}>
+                ←
+              </button>
+              <button type="button" aria-label="Next screens" onClick={() => slide(1)}>
+                →
+              </button>
+            </div>
           </div>
+          <ol className="flow-track" ref={track} tabIndex={0} aria-label="App flow, scroll sideways">
+            {steps.map((s, i) => (
+              <li className="flow-step" key={s.img}>
+                <span className="flow-num">{i + 1}</span>
+                <div className="flow-phone">
+                  <img src={`/screens/${s.img}.webp`} alt={s.alt} width="720" height="1565" loading="lazy" decoding="async" />
+                </div>
+                <h3>{s.t}</h3>
+                <p>{s.p}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
 
+        <div className="wrap">
           <ul className="chips-row">
             <li>Live charger map</li>
             <li>Wallet and payments</li>
