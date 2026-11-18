@@ -1485,3 +1485,113 @@ html[data-theme='dark'] .header {
     transition: none;
   }
 }
+
+
+/* The dreamy veil of the opening shot. --dream (1 to 0) is written by the 3D scene: a soft focus, a pastel glow around the edges
+   and a few slow bokeh lights drifting up. It fades with the haze and is removed once the intro class is gone. */
+.dream {
+  --dream-edge: 196, 184, 255;
+  --dream-glow: 120, 232, 190;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: var(--dream, 0);
+  backdrop-filter: blur(calc(var(--dream, 0) * 3.5px)) saturate(1.12);
+  background:
+    radial-gradient(115% 85% at 50% 48%, rgba(var(--dream-edge), 0) 42%, rgba(var(--dream-edge), 0.5) 100%),
+    radial-gradient(55% 45% at 50% 58%, rgba(var(--dream-glow), 0.22), transparent 72%);
+}
+html[data-theme='dark'] .dream {
+  --dream-edge: 74, 62, 190;
+  --dream-glow: 60, 200, 170;
+}
+html:not(.intro) .dream {
+  display: none;
+}
+.dream i {
+  position: absolute;
+  left: calc(8% + var(--i) * 10.5%);
+  bottom: -12%;
+  width: calc(60px + var(--i) * 9px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.55), rgba(var(--dream-glow), 0.18) 55%, transparent 70%);
+  filter: blur(6px);
+  opacity: 0;
+  animation: dream-rise calc(9s + var(--i) * 1.3s) ease-in-out calc(var(--i) * -2.1s) infinite;
+}
+@keyframes dream-rise {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.7);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate3d(calc((var(--i) - 4) * 9px), -125vh, 0) scale(1.25);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dream i {
+    animation: none;
+  }
+}
+
+
+/* The Skip button of the opening shot: the only way to skip it. Frosted like the header, bottom centre, gone at the hero shot. */
+.skip-intro {
+  position: fixed;
+  left: 50%;
+  bottom: max(28px, env(safe-area-inset-bottom, 0px) + 20px);
+  z-index: 45;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid rgba(var(--head-fade), 0.55);
+  border-radius: 999px;
+  color: var(--text);
+  background: rgba(var(--head-fade), 0.55);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  animation: skip-in 0.6s ease 0.8s both;
+  transition: opacity 0.4s ease, background 0.2s ease;
+}
+.skip-intro:hover {
+  background: rgba(var(--head-fade), 0.78);
+}
+.skip-intro:focus-visible {
+  outline: 2px solid #05c158;
+  outline-offset: 3px;
+}
+.skip-intro.busy {
+  opacity: 0.45;
+  cursor: default;
+}
+@keyframes skip-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skip-intro {
+    animation: none;
+  }
+}

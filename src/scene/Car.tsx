@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
+import { useGLTF } from './gltf'
 import * as THREE from 'three'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { INTRO_SECONDS, clamp, smooth, story } from '../story'
@@ -8,7 +8,9 @@ import { carPose, phases, PORT } from '../layout'
 import { hero } from './cityLayout'
 import { INTRO_DRIVE_END, routePose } from './route'
 import { makeHalo } from './ink'
-import { makeBeam, makeCarShadow, makeRadial } from './textures'
+import { makeCarShadow, makeRadial } from './textures'
+import { beamGeometry, beamMaterial, beamTexture } from './beams'
+import { DECAL, makeGraffitiDecal } from './decal'
 
 // The car is the Mahindra BE 6 style EV built in Blender (public/models/be6.glb, Draco compressed).
 // Node names in the file:
@@ -21,7 +23,6 @@ import { makeBeam, makeCarShadow, makeRadial } from './textures'
 const GREEN = '#05C158'
 const BASE = import.meta.env.BASE_URL
 const URL = BASE + 'models/be6.glb'
-useGLTF.setDecoderPath(BASE + 'draco/')
 useGLTF.preload(URL)
 
 // Lamp materials (by name in the GLB). Their emission is driven by the story.
@@ -51,16 +52,18 @@ export function Car({ high }: { high: boolean }) {
   const tgL = useRef<THREE.Object3D>(null)
   const tgR = useRef<THREE.Object3D>(null)
   const tailLight = useRef<THREE.PointLight>(null)
-  const beamTex = useMemo(makeBeam, [])
-  const beamMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
-    [beamTex],
-  )
+  // the light on the road: two soft pools ahead (one per headlamp) and two short red ones behind (tail lamps), the same as the traffic
+  const beamTex = useMemo(beamTexture, [])
+  const beamMat = useMemo(() => beamMaterial(beamTex, '#fff1d6', 0), [beamTex])
+  const tailBeamMat = useMemo(() => beamMaterial(beamTex, '#ff3a22', 0), [beamTex])
+  const beamFGeo = useMemo(() => beamGeometry(1), [])
+  const beamRGeo = useMemo(() => beamGeometry(-1), [])
   const ringMat = useRef<THREE.MeshStandardMaterial>(null)
   const glowMat = useRef<THREE.MeshBasicMaterial>(null)
   const portLight = useRef<THREE.PointLight>(null)
   const time = useRef(0)
   const carInv = useMemo(() => ({ value: new THREE.Matrix4() }), [])
+  const racing = useMemo(makeGraffitiDecal, [])
 
   const shadowTex = useMemo(makeCarShadow, [])
   const glowTex = useMemo(() => makeRadial('rgba(5,193,88,0.9)', 'rgba(5,193,88,0)'), [])
@@ -139,19 +142,61 @@ export function Car({ high }: { high: boolean }) {
           p.color.set('#ffffff')
           p.onBeforeCompile = (shader) => {
             shader.uniforms.uCarInv = carInv
+            shader.uniforms.uDecalMap = { value: racing.tex }
+            shader.uniforms.uDecalMapB = { value: racing.texB }
+            shader.uniforms.uDecalMapC = { value: racing.texC }
+            shader.uniforms.uDecal = { value: new THREE.Vector4(DECAL.x, DECAL.y, DECAL.w, DECAL.h) }
             shader.uniforms.uBlue = { value: new THREE.Color('#0282EA') }
             shader.uniforms.uGreen = { value: new THREE.Color('#05CB3F') }
             shader.vertexShader = shader.vertexShader
               .replace('#include <common>', '#include <common>\nvarying vec3 vCar;\nuniform mat4 uCarInv;')
               .replace('#include <begin_vertex>', '#include <begin_vertex>\nvCar = (uCarInv * modelMatrix * vec4(transformed, 1.0)).xyz;')
             shader.fragmentShader = shader.fragmentShader
-              .replace('#include <common>', '#include <common>\nvarying vec3 vCar;\nuniform vec3 uBlue;\nuniform vec3 uGreen;')
+              .replace('#include <common>', '#include <common>\nvarying vec3 vCar;\nuniform vec3 uBlue;\nuniform vec3 uGreen;\nuniform sampler2D uDecalMap;\nuniform sampler2D uDecalMapB;\nuniform sampler2D uDecalMapC;\nuniform vec4 uDecal;\nfloat dMask = 0.0;')
+              .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n                roughnessFactor = mix(roughnessFactor, 0.26, dMask);')
               .replace(
                 '#include <color_fragment>',
                 `#include <color_fragment>
                 float gt = clamp((vCar.x + 2.15) / 4.3, 0.0, 1.0); // 0 at the tail, 1 at the nose
                 vec3 gc = mix(uBlue, uGreen, gt) * 0.62;
-                diffuseColor.rgb *= gc;`,
+                diffuseColor.rgb *= gc;
+                // the graffiti, sprayed over the doors of both sides (read left to right from either side)
+                vec2 dUv = vec2((vCar.x - uDecal.x) / uDecal.z, (vCar.y - uDecal.y) / uDecal.w);
+                dUv.x = vCar.z > 0.0 ? dUv.x : 1.0 - dUv.x;
+                // sampled outside any branch, so the texture's mip level is chosen correctly right up to the edge
+                vec2 dq = clamp(dUv, 0.0, 1.0);
+                vec3 dA = texture2D(uDecalMap, dq).rgb;
+                vec3 dB = texture2D(uDecalMapB, dq).rgb;
+                vec3 dC = texture2D(uDecalMapC, dq).rgb;
+                float dm = step(0.55, abs(vCar.z)) * step(0.0, dUv.x) * step(dUv.x, 1.0) * step(0.0, dUv.y) * step(dUv.y, 1.0);
+                float dFill = dA.r * dm;
+                float dKey = dA.g * dm;
+                float dOut = dA.b * dm;
+                float dShadow = dB.r * dm;
+                float dShine = dB.g * dFill;
+                float dExtra = dB.b * dm;
+                float dInline = dC.r * dFill;
+                float dShade = dC.g * dFill;
+                float dHalo = dC.b * dm;
+                vec3 dBase = diffuseColor.rgb;
+                // the colours of the piece: a pale spray with a good share of the body colour in it (the white melts into the
+                // paint), an accent keyline from the opposite end of the body gradient, a deep tonal outline with a thin pale
+                // halo round it, and a dark inline and a shaded lower edge cut into the letters
+                vec3 dSpray = mix(vec3(0.95), dBase * 2.5, 0.3);
+                dSpray *= mix(0.8, 1.0, clamp(dUv.y * 1.3, 0.0, 1.0));
+                vec3 dAccent = mix(uBlue, uGreen, 1.0 - gt) * 1.35;
+                vec3 dKeyCol = mix(dAccent, vec3(1.0), 0.18);
+                vec3 dCol = mix(dBase, dBase * 0.5, dShadow * 0.65);
+                dCol = mix(dCol, dAccent, dExtra * 0.9);
+                dCol = mix(dCol, mix(vec3(1.0), dBase * 2.2, 0.25), dHalo * 0.85);
+                dCol = mix(dCol, dBase * 0.2, dOut);
+                dCol = mix(dCol, dKeyCol, dKey * 0.92);
+                dCol = mix(dCol, dSpray, dFill * 0.93);
+                dCol = mix(dCol, dSpray * 0.62, dShade * 0.55);
+                dCol = mix(dCol, dBase * 0.3, dInline * 0.75);
+                dCol = mix(dCol, vec3(1.0), dShine * 0.55);
+                diffuseColor.rgb = dCol;
+                dMask = max(max(dFill, dKey), max(max(dOut * 0.8, dHalo * 0.6), dExtra));`,
               )
           }
           p.metalness = 0.15
@@ -273,7 +318,8 @@ export function Car({ high }: { high: boolean }) {
     const beam = n * drive
     if (spL.current) spL.current.intensity = 160 * beam
     if (spR.current) spR.current.intensity = 160 * beam
-    beamMat.opacity = 0.5 * beam
+    beamMat.opacity = 0.55 * beam
+    tailBeamMat.opacity = (0.3 * tailLvl + 0.7 * brake) * (0.15 + 0.85 * n)
     if (tailLight.current) tailLight.current.intensity = (0.5 * tailLvl + 2.2 * brake) * (0.3 + 0.7 * n) * 1.4
 
     // the car's own reflection map is a bright studio: dim it at night so the paint reads dark
@@ -300,9 +346,10 @@ export function Car({ high }: { high: boolean }) {
         <object3D ref={tgR} position={[15, -0.1, -1.1]} />
         <pointLight ref={tailLight} position={[-3.1, 0.45, 0]} color="#ff2b1c" intensity={0} distance={5} decay={2} />
         {[0.62, -0.62].map((z) => (
-          <mesh key={z} rotation-x={-Math.PI / 2} position={[7.3, 0.03, z * 1.2]} renderOrder={4} material={beamMat}>
-            <planeGeometry args={[10, 3.6]} />
-          </mesh>
+          <group key={z}>
+            <mesh geometry={beamFGeo} material={beamMat} position={[2.0, 0.03, z]} scale={[9, 1, 2.2]} renderOrder={4} />
+            <mesh geometry={beamRGeo} material={tailBeamMat} position={[-2.1, 0.03, z]} scale={[3.2, 1, 1.5]} renderOrder={4} />
+          </group>
         ))}
 
         {/* charge port: status ring and light */}

@@ -3,7 +3,7 @@ import { detectQuality, hasWebGL, story } from './story'
 import { initScroll, scrollToId } from './scroll'
 import { initSound } from './audio'
 import { useRoute } from './router'
-import { Footer, Header, Logo } from './ui'
+import { Footer, Header, Logo, SkipIntro } from './ui'
 import type { Path } from './paths/types'
 import DriversPath from './paths/DriversPath'
 import PartnersPath from './paths/PartnersPath'
@@ -95,6 +95,7 @@ function Home() {
       </div>
 
       <Header />
+      <SkipIntro ready={ready} />
       <div className="topbar" aria-hidden="true">
         <i />
       </div>
@@ -111,6 +112,13 @@ function Home() {
             )}
 
             <div className="scrim" aria-hidden="true" />
+
+            {/* the dreamy veil of the opening shot: soft glow, a little blur and slow drifting lights, gone once the camera settles */}
+            <div className="dream" aria-hidden="true">
+              {Array.from({ length: 9 }, (_, i) => (
+                <i key={i} style={{ ['--i' as string]: i }} />
+              ))}
+            </div>
 
             <Caption a={-0.1} b={0.12} wide>
               <h1>

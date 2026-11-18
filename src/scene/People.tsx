@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
+import { useGLTF } from './gltf'
 import * as THREE from 'three'
 import { smooth } from '../story'
 import { PAVE_Y } from '../layout'

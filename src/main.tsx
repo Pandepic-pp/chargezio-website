@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import '@fontsource-variable/inter'
+import './fonts.css'
 import 'lenis/dist/lenis.css'
 import './styles.css'
 import App from './App'

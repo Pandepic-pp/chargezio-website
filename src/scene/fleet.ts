@@ -1,12 +1,10 @@
 import * as THREE from 'three'
-import { useGLTF } from '@react-three/drei'
 import { attachInk } from './ink'
 
 // Instancing for glTF models: every mesh of the model becomes an InstancedMesh with the same instance matrices, so a
 // whole model (many materials) is drawn for N instances with one draw call per material.
 
 const BASE = import.meta.env.BASE_URL
-useGLTF.setDecoderPath(BASE + 'draco/')
 
 export const modelUrl = (name: string) => BASE + 'models/city/' + name + '.glb'
 
