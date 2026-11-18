@@ -158,6 +158,37 @@ export function Header() {
   )
 }
 
+// The only way to skip the opening shot. It shows once the loading screen is gone and is removed as soon as the hero shot is reached.
+export function SkipIntro({ ready }: { ready: boolean }) {
+  const [done, setDone] = useState(() => story.introDone)
+  const [skipping, setSkipping] = useState(false)
+  useEffect(() => {
+    if (done) return
+    const id = window.setInterval(() => {
+      if (story.introDone) setDone(true)
+    }, 150)
+    return () => clearInterval(id)
+  }, [done])
+  if (done || !ready) return null
+  return (
+    <button
+      type="button"
+      className={`skip-intro${skipping ? ' busy' : ''}`}
+      onClick={() => {
+        story.introSpeed = 7
+        setSkipping(true)
+      }}
+      disabled={skipping}
+      aria-label="Skip the intro"
+    >
+      <span>Skip intro</span>
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <path d="m6 6 7 6-7 6M14 6l7 6-7 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  )
+}
+
 export function Footer() {
   return (
     <footer className="footer">

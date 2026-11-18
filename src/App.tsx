@@ -3,7 +3,7 @@ import { detectQuality, hasWebGL, story } from './story'
 import { initScroll, scrollToId } from './scroll'
 import { initSound } from './audio'
 import { useRoute } from './router'
-import { Footer, Header, Logo } from './ui'
+import { Footer, Header, Logo, SkipIntro } from './ui'
 import type { Path } from './paths/types'
 import DriversPath from './paths/DriversPath'
 import PartnersPath from './paths/PartnersPath'
@@ -95,6 +95,7 @@ function Home() {
       </div>
 
       <Header />
+      <SkipIntro ready={ready} />
       <div className="topbar" aria-hidden="true">
         <i />
       </div>

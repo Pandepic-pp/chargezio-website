@@ -27,6 +27,8 @@ the back; it is fixed to the car, not the world (`uBlue` / `uGreen` in `Car.tsx`
 The charge port position and normal are the `PORT` constants in `src/layout.ts`; camera keys near the port are in `src/camera.ts`.
 
 ## Opening shot
+The shot can only be skipped with the Skip intro button (`SkipIntro` in `src/ui.tsx`); scrolling, touching or pressing keys does not
+skip it, and the button goes away when the hero shot is reached. Opening a deep link such as `/#partners` still fast-forwards it.
 The shot is dreamy on purpose: it opens in a soft lilac haze and soft focus with a few slow bokeh lights, the camera drifts, rocks
 and breathes a little, and all of it clears as the camera settles (`--dream` is written from `World.tsx`, the veil is `.dream` in
 `styles.css`, the float is in `applyIntro`).

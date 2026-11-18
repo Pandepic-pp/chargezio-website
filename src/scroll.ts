@@ -8,10 +8,9 @@ gsap.registerPlugin(ScrollTrigger)
 let lenisRef: Lenis | null = null
 
 // Scroll to an element by id. Uses Lenis when it is running so the motion matches the rest of the site.
-// While the opening shot plays scrolling is locked, so a click is queued: it fast-forwards the shot, then scrolls.
+// While the opening shot plays scrolling is locked, so a click is queued: it waits for the shot to end (it does not skip it), then scrolls.
 export function scrollToId(id: string, offset = 0, immediate = false) {
   if (!story.introDone) {
-    story.introSpeed = 7
     const wait = setInterval(() => {
       if (!story.introDone) return
       clearInterval(wait)
@@ -83,19 +82,10 @@ export function initScroll(el: HTMLElement) {
   lenisRef = lenis
   gsap.ticker.lagSmoothing(0)
 
-  // The opening shot plays with scrolling locked. Any attempt to scroll fast-forwards it.
+  // The opening shot plays with scrolling locked. Only the Skip button (src/App.tsx) fast-forwards it; no scroll, touch or key does.
   if (story.reduced) story.introDone = true
   let locked = !story.introDone
   if (locked) lenis?.stop()
-  const skip = () => {
-    if (!story.introDone) story.introSpeed = 7
-  }
-  const skipKeys = (e: KeyboardEvent) => {
-    if (['ArrowDown', 'PageDown', ' ', 'End', 'Enter'].includes(e.key)) skip()
-  }
-  window.addEventListener('wheel', skip, { passive: true })
-  window.addEventListener('touchstart', skip, { passive: true })
-  window.addEventListener('keydown', skipKeys)
 
   let lastSmooth = -1
   let lastRender = 0
@@ -193,8 +183,5 @@ export function initScroll(el: HTMLElement) {
     lenis?.destroy()
     ro.disconnect()
     window.removeEventListener('resize', measure)
-    window.removeEventListener('wheel', skip)
-    window.removeEventListener('touchstart', skip)
-    window.removeEventListener('keydown', skipKeys)
   }
 }

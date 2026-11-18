@@ -1540,3 +1540,58 @@ html:not(.intro) .dream {
     animation: none;
   }
 }
+
+
+/* The Skip button of the opening shot: the only way to skip it. Frosted like the header, bottom centre, gone at the hero shot. */
+.skip-intro {
+  position: fixed;
+  left: 50%;
+  bottom: max(28px, env(safe-area-inset-bottom, 0px) + 20px);
+  z-index: 45;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid rgba(var(--head-fade), 0.55);
+  border-radius: 999px;
+  color: var(--text);
+  background: rgba(var(--head-fade), 0.55);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  animation: skip-in 0.6s ease 0.8s both;
+  transition: opacity 0.4s ease, background 0.2s ease;
+}
+.skip-intro:hover {
+  background: rgba(var(--head-fade), 0.78);
+}
+.skip-intro:focus-visible {
+  outline: 2px solid #05c158;
+  outline-offset: 3px;
+}
+.skip-intro.busy {
+  opacity: 0.45;
+  cursor: default;
+}
+@keyframes skip-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skip-intro {
+    animation: none;
+  }
+}
