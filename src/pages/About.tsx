@@ -3,11 +3,20 @@ import { Link } from '../router'
 import { Footer, Header } from '../ui'
 import { story } from '../story'
 
-// Founder details are placeholders until the real names, roles, bios and photos are supplied.
+// Founders are shown by role and point of view only: no names, photos or bios.
 const founders = [
-  { name: 'Founder name', role: 'Role, for example Co-founder and CEO' },
-  { name: 'Founder name', role: 'Role, for example Co-founder and CTO' },
-  { name: 'Founder name', role: 'Role' },
+  {
+    role: 'Founder, UX and product experience',
+    pov: 'A charging app gets used in a hurry, often with one hand. If a screen needs explaining, the design has failed. Good UX comes from listening to users, then taking things away. Every screen in Chargezio should answer one question: what does the driver do next?',
+  },
+  {
+    role: 'Founder, brand and design direction',
+    pov: 'A brand is a promise you keep on every screen. I turn scattered pages, apps and campaigns into one clear identity. For Chargezio that means the same calm, simple feel from the first ad to the last receipt, for drivers and for charging partners.',
+  },
+  {
+    role: 'Founding engineer',
+    pov: 'Most charging problems are data problems. Stations, prices and availability sit in different systems that do not talk to each other. I build the integrations and AI tools that connect big systems and make them easy to use in plain language. Chargezio is that idea applied to charging, built on real signals, not assumptions.',
+  },
 ]
 
 export default function About() {
@@ -54,16 +63,18 @@ export default function About() {
           <div className="wrap">
             <div className="head">
               <span className="eyebrow">Founders</span>
-              <h2>The people behind Chargezio.</h2>
+              <h2>Three people, one belief: charging should feel simple.</h2>
+              <p>
+                We come from fashion tech, where we build products used by thousands of people every day. We bring the same standards
+                to EV charging.
+              </p>
             </div>
             <div className="ab-founders">
-              {founders.map((f, i) => (
-                <div className="ab-founder" key={i}>
-                  <div className="ab-photo">Photo</div>
-                  <h3>{f.name}</h3>
-                  <span>{f.role}</span>
-                  <p>Two-line bio goes here.</p>
-                </div>
+              {founders.map((f) => (
+                <figure className="ab-founder" key={f.role}>
+                  <figcaption>{f.role}</figcaption>
+                  <blockquote>{f.pov}</blockquote>
+                </figure>
               ))}
             </div>
           </div>
