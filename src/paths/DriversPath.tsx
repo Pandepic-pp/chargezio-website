@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { StoreButtons } from '../ui'
 import type { Path } from './types'
 
@@ -16,12 +16,77 @@ const steps = [
 export default function DriversPath({ onSwitch }: { onSwitch: (p: Path) => void }) {
   const track = useRef<HTMLOListElement>(null)
 
-  const slide = (dir: 1 | -1) => {
+  // Endless drift: the list is rendered twice and the scroll position wraps by one copy's width, so the
+  // screens loop with no seam. It pauses while the visitor hovers, touches or focuses the row, and they can
+  // still swipe or trackpad-scroll it in either direction. Reduced-motion visitors get the manual loop only.
+  useEffect(() => {
     const el = track.current
     if (!el) return
-    const step = el.querySelector('li')?.getBoundingClientRect().width ?? 300
-    el.scrollBy({ left: dir * (step + 24), behavior: 'smooth' })
-  }
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const speed = 40 // px per second
+    let pos = el.scrollLeft
+    let paused = false
+    let last = performance.now()
+    let raf = 0
+
+    const loopWidth = () => {
+      const items = el.children
+      const first = items[0] as HTMLElement | undefined
+      const copy = items[steps.length] as HTMLElement | undefined
+      return first && copy ? copy.offsetLeft - first.offsetLeft : 0
+    }
+    const wrap = () => {
+      const w = loopWidth()
+      if (!w) return
+      if (el.scrollLeft >= w) el.scrollLeft -= w
+      else if (el.scrollLeft <= 0) el.scrollLeft += w
+      pos = el.scrollLeft
+    }
+    const tick = (now: number) => {
+      const dt = Math.min(now - last, 100) / 1000
+      last = now
+      if (!paused && !still) {
+        pos += speed * dt
+        const w = loopWidth()
+        if (w && pos >= w) pos -= w
+        el.scrollLeft = pos
+      }
+      raf = requestAnimationFrame(tick)
+    }
+
+    const pause = () => {
+      paused = true
+    }
+    const resume = () => {
+      paused = false
+      pos = el.scrollLeft
+    }
+    const onScroll = () => {
+      if (paused || still) wrap()
+    }
+    const onLeave = () => {
+      if (!el.contains(document.activeElement)) resume()
+    }
+
+    el.addEventListener('pointerenter', pause)
+    el.addEventListener('pointerleave', onLeave)
+    el.addEventListener('touchstart', pause, { passive: true })
+    el.addEventListener('touchend', resume)
+    el.addEventListener('focusin', pause)
+    el.addEventListener('focusout', resume)
+    el.addEventListener('scroll', onScroll, { passive: true })
+    raf = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(raf)
+      el.removeEventListener('pointerenter', pause)
+      el.removeEventListener('pointerleave', onLeave)
+      el.removeEventListener('touchstart', pause)
+      el.removeEventListener('touchend', resume)
+      el.removeEventListener('focusin', pause)
+      el.removeEventListener('focusout', resume)
+      el.removeEventListener('scroll', onScroll)
+    }
+  }, [])
 
   return (
     <div className="path-in">
@@ -37,26 +102,29 @@ export default function DriversPath({ onSwitch }: { onSwitch: (p: Path) => void 
         <div className="flow">
           <div className="flow-bar wrap">
             <span className="flow-count">{steps.length} steps</span>
-            <div className="flow-nav">
-              <button type="button" aria-label="Previous screens" onClick={() => slide(-1)}>
-                ←
-              </button>
-              <button type="button" aria-label="Next screens" onClick={() => slide(1)}>
-                →
-              </button>
-            </div>
           </div>
           <ol className="flow-track" ref={track} tabIndex={0} aria-label="App flow, scroll sideways">
-            {steps.map((s, i) => (
-              <li className="flow-step" key={s.img}>
-                <span className="flow-num">{i + 1}</span>
-                <div className="flow-phone">
-                  <img src={`/screens/${s.img}.webp`} alt={s.alt} width="720" height="1565" loading="lazy" decoding="async" />
-                </div>
-                <h3>{s.t}</h3>
-                <p>{s.p}</p>
-              </li>
-            ))}
+            {[...steps, ...steps].map((s, n) => {
+              const i = n % steps.length
+              const dupe = n >= steps.length
+              return (
+                <li className="flow-step" key={n} aria-hidden={dupe || undefined}>
+                  <span className="flow-num">{i + 1}</span>
+                  <div className="flow-phone">
+                    <img
+                      src={`/screens/${s.img}.webp`}
+                      alt={dupe ? '' : s.alt}
+                      width="720"
+                      height="1565"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </div>
+                  <h3>{s.t}</h3>
+                  <p>{s.p}</p>
+                </li>
+              )
+            })}
           </ol>
         </div>
 
@@ -83,7 +151,9 @@ export default function DriversPath({ onSwitch }: { onSwitch: (p: Path) => void 
 
       <div className="path-switch">
         Run charging stations?{' '}
-        <button type="button" onClick={() => onSwitch('partners')}>See the partner side</button>
+        <button type="button" onClick={() => onSwitch('partners')}>
+          See the partner side
+        </button>
       </div>
     </div>
   )

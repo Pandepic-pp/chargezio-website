@@ -214,9 +214,7 @@ export function StoreButtons() {
         </span>
       </a>
       <a className="store" href="#" aria-label="Get it on Google Play">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-          <path fill="currentColor" d="M4 2.8v18.4c0 .5.5.8.9.6l9.6-9.2L4.9 2.2c-.4-.2-.9.1-.9.6zm11.5 8.1 2.8-2.7-11-6.2 8.2 8.9zm0 2.2-8.2 8.9 11-6.2-2.8-2.7zM20.3 10.7l-2.2-1.2-3 2.5 3 2.5 2.3-1.3c.8-.5.8-1.6-.1-2.5z" />
-        </svg>
+        <img src={BASE + 'google-play-icon.svg'} alt="" width="22" height="24" aria-hidden="true" />
         <span>
           <small>Get it on</small>
           Google Play
